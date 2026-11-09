@@ -1,0 +1,39 @@
+{
+  "name": "clipforge-local",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "packageManager": "pnpm@12.4.2",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm --parallel --filter @clipforge/api --filter @clipforge/desktop run dev:stack",
+    "dev:desktop": "pnpm --filter @clipforge/desktop tauri dev",
+    "dev:api": "pnpm --filter @clipforge/api dev",
+    "dev:worker": "./scripts/worker.sh",
+    "build": "pnpm -r build",
+    "build:packages": "pnpm --filter \"./packages/**\" build",
+    "build:desktop": "pnpm build:packages && pnpm --filter @clipforge/desktop tauri build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm build:packages && pnpm -r test && pnpm test:worker",
+    "test:worker": "cd services/worker && .venv/bin/python -m pytest -q",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "db:generate": "pnpm --filter @clipforge/database db:generate",
+    "db:migrate": "pnpm --filter @clipforge/database db:migrate",
+    "doctor": "./scripts/check-prereqs.sh"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.6.6",
+    "eslint": "^10.14.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.14.0",
+    "prettier": "^3.9.10",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.72.1",
+    "vitest": "^5.1.0"
+  }
+}

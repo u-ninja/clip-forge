@@ -1,0 +1,4 @@
+# Runtime deps only. No torch/CUDA/whisper in phase 1 — those go behind worker.compute backends.
+fastapi>=0.120,<1
+uvicorn>=0.38,<1
+pydantic>=2.12,<3

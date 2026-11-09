@@ -1,0 +1,25 @@
+{
+  "name": "@clipforge/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --conditions=source --env-file-if-exists=../../.env src/server.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node --env-file-if-exists=../../.env dist/server.js",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "dev:stack": "pnpm dev"
+  },
+  "dependencies": {
+    "@fastify/cors": "^11.4.1",
+    "@clipforge/database": "workspace:*",
+    "@clipforge/shared": "workspace:*",
+    "fastify": "^5.12.8",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "pino-pretty": "^13.2.0",
+    "tsx": "^4.23.15"
+  }
+}
