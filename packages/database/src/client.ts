@@ -15,7 +15,7 @@ export interface DatabaseHandle {
   close(): void;
 }
 
-const MIGRATIONS_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "drizzle");
+export const MIGRATIONS_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "drizzle");
 const BUSY_TIMEOUT_MS = 5_000;
 
 /**
@@ -23,7 +23,8 @@ const BUSY_TIMEOUT_MS = 5_000;
  * other processes must go through the API rather than opening this file.
  */
 export function openDatabase(path: string): DatabaseHandle {
-  if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
+  // Owner-only: other accounts on a shared machine must not read the database.
+  if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
   const sqlite = new Database(path);
   sqlite.pragma("journal_mode = WAL");
   sqlite.pragma("synchronous = NORMAL");

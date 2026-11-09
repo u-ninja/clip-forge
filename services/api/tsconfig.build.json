@@ -1,5 +1,9 @@
 {
   "extends": "./tsconfig.json",
-  "compilerOptions": { "customConditions": [] },
-  "exclude": ["src/**/*.test.ts"]
+  "compilerOptions": {
+    "customConditions": [],
+    "rootDir": "src"
+  },
+  "exclude": ["src/**/*.test.ts", "src/test-support.ts", "src/**/*.fixture.ts"],
+  "include": ["src"]
 }

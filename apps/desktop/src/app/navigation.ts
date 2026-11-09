@@ -7,6 +7,7 @@ import {
   type LucideIcon,
   PenLine,
   Settings,
+  Stethoscope,
   Tv,
 } from "lucide-react";
 
@@ -39,6 +40,12 @@ export const NAV_ITEMS: readonly NavItem[] = [
     label: "Templates",
     icon: LayoutTemplate,
     description: "Video and caption templates",
+  },
+  {
+    path: "/diagnostics",
+    label: "Diagnostics",
+    icon: Stethoscope,
+    description: "Runtime health and support report",
   },
   {
     path: "/settings",

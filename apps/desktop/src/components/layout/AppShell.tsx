@@ -1,8 +1,10 @@
-import { NavLink, Outlet } from "react-router";
+import { NavLink, Outlet, useLocation } from "react-router";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { NAV_ITEMS } from "@/app/navigation";
 import { cn } from "@/lib/utils";
 
 export function AppShell() {
+  const { pathname } = useLocation();
   return (
     <div className="flex h-screen bg-background text-foreground">
       <aside className="flex w-56 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
@@ -28,7 +30,9 @@ export function AppShell() {
         </nav>
       </aside>
       <main className="min-w-0 flex-1 overflow-y-auto">
-        <Outlet />
+        <ErrorBoundary resetKey={pathname}>
+          <Outlet />
+        </ErrorBoundary>
       </main>
     </div>
   );

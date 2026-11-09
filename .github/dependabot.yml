@@ -1,0 +1,41 @@
+# Controlled dependency updates (docs/OPERATIONS.md#dependency-updates).
+# Minor/patch updates are grouped per ecosystem; majors arrive as individual PRs for deliberate review.
+# Nothing auto-merges: every PR must pass CI and Security (enforced by branch protection on main).
+version: 2
+updates:
+  - package-ecosystem: npm # pnpm workspaces + pnpm-lock.yaml
+    directory: /
+    schedule: { interval: weekly, day: monday }
+    open-pull-requests-limit: 5
+    groups:
+      npm-minor-patch:
+        update-types: [minor, patch]
+    cooldown:
+      default-days: 7 # let fresh releases settle (supply-chain hygiene)
+
+  - package-ecosystem: cargo
+    directory: /apps/desktop/src-tauri
+    schedule: { interval: weekly, day: monday }
+    open-pull-requests-limit: 5
+    groups:
+      cargo-minor-patch:
+        update-types: [minor, patch]
+    cooldown:
+      default-days: 7
+
+  - package-ecosystem: pip
+    directory: /services/worker
+    schedule: { interval: weekly, day: monday }
+    open-pull-requests-limit: 3
+    groups:
+      pip-minor-patch:
+        update-types: [minor, patch]
+    cooldown:
+      default-days: 7
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: monthly }
+    groups:
+      actions:
+        update-types: [minor, patch]

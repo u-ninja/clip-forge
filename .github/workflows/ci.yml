@@ -1,0 +1,106 @@
+# Pull-request validation. Actions are pinned to commit SHAs (comment = release tag); Dependabot updates them.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Least privilege: CI only reads the repository. `pull_request` (not `pull_request_target`) means
+# forked PRs run without repository secrets.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "26"
+  PYTHON_VERSION: "3.15"
+
+jobs:
+  typescript-python:
+    name: TypeScript, Python, E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1 (version from packageManager)
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: services/worker/requirements*.txt
+
+      - name: Install (lockfile only)
+        run: pnpm install --frozen-lockfile
+      - name: Worker virtualenv
+        run: |
+          python -m venv services/worker/.venv
+          services/worker/.venv/bin/pip install --quiet -r services/worker/requirements-dev.txt
+
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm format:check
+      - name: Tests (Vitest + pytest)
+        run: pnpm test
+      - name: Production build (packages, API, frontend)
+        run: pnpm build
+
+      - name: Playwright browser
+        run: pnpm --filter @clipforge/desktop exec playwright install --with-deps chromium
+      - name: Browser E2E (mocked IPC — not a native desktop test)
+        run: pnpm --filter @clipforge/desktop test:e2e
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: playwright-report
+          path: |
+            apps/desktop/playwright-report
+            apps/desktop/test-results
+          retention-days: 7
+
+  rust:
+    name: Rust (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        # Linux runs the tests; Windows proves the cfg(windows) process code compiles and passes clippy.
+        os: [ubuntu-latest, windows-latest]
+    defaults:
+      run:
+        working-directory: apps/desktop/src-tauri
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+      - name: Linux system libraries for Tauri
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: apps/desktop/src-tauri
+      - name: Placeholder frontend dist (tauri::generate_context! expects it)
+        shell: bash
+        run: mkdir -p ../dist
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets --locked -- -D warnings
+      - name: Tests
+        if: runner.os == 'Linux'
+        run: cargo test --locked

@@ -45,28 +45,46 @@ Config files that no generator produces (tsconfigs, ESLint, Prettier, `.env.exam
 
 ## Running
 
-| Command            | What it does                                                                  |
-| ------------------ | ----------------------------------------------------------------------------- |
-| `pnpm dev`         | API (tsx watch) and Tauri dev window in parallel                              |
-| `pnpm dev:api`     | API on `127.0.0.1:4317`; migrates the DB, then listens                        |
-| `pnpm dev:desktop` | Vite on `:1420` + Rust build + native window. First Rust build takes ~1–2 min |
-| `pnpm dev:worker`  | Creates the venv if missing, starts the worker on `127.0.0.1:4318`            |
+| Command                         | What it does                                                                                                                            |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm dev` / `pnpm dev:desktop` | Vite on `:1420` + Rust build + native window; the app starts the API itself (hot reload via tsx watch). First Rust build takes ~1–2 min |
+| `pnpm dev:api`                  | API alone (backend work). Needs `CLIPFORGE_API_SECRET`, see below                                                                       |
+| `pnpm dev:worker`               | Creates the venv if missing and starts the worker standalone. Run it once so the app can start the worker                               |
 
-Check services:
+Don't run `pnpm dev:api` while the desktop app is running; both want port 4317 (the app reports "port in use").
+
+### Calling the API by hand
+
+Every route except `/health` needs a signed request (ADR-010). For a standalone API:
 
 ```sh
-curl http://127.0.0.1:4317/health
-curl http://127.0.0.1:4317/api/version
-curl http://127.0.0.1:4318/health
+export CLIPFORGE_API_SECRET=$(openssl rand -hex 32)   # same shell for both commands
+pnpm dev:api
+pnpm --filter @clipforge/api call GET /api/v1/version
+pnpm --filter @clipforge/api call POST /api/v1/jobs '{"kind":"system.selftest","payload":{"durationMs":2000}}'
+curl http://127.0.0.1:4317/health                      # public
 ```
+
+`curl` and `fetch` can't be used for protected routes. `fetch` also adds `Sec-Fetch-*` headers, which the API rejects as browser traffic.
+
+### Logs while developing
+
+The desktop app mirrors every service's JSON log lines to the terminal and writes them to `<data>/logs/` (OPERATIONS.md). Use `CLIPFORGE_DATA_DIR=/tmp/cf pnpm dev:desktop` for a throwaway data directory.
 
 ## Quality checks
 
 ```sh
 pnpm typecheck && pnpm lint && pnpm format:check && pnpm test && pnpm build
+(cd apps/desktop/src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test)
+pnpm --filter @clipforge/desktop exec playwright install chromium   # once
+pnpm --filter @clipforge/desktop test:e2e
 ```
 
-`pnpm test` builds the packages first, runs Vitest in each workspace, then pytest in the worker venv.
+- `pnpm test` builds the packages first, runs Vitest in each workspace, then pytest in the worker venv.
+- `cargo test` includes real process lifecycle tests: they spawn `python3`, crash it, and check restarts and tree kills.
+- `test:e2e` starts Vite and runs the UI in Chromium against a **mocked** Tauri IPC (`apps/desktop/e2e/mock-runtime.ts`). It tests UI workflows, not the native app; see the native checklist in RUNTIME_LIFECYCLE.md.
+
+CI runs the same commands (`.github/workflows/ci.yml`).
 
 ## Database workflow
 
@@ -80,11 +98,13 @@ Use `CLIPFORGE_DATA_DIR=/some/tmp/dir` to point everything at a throwaway databa
 
 All variables are documented in [`.env.example`](../.env.example). The API validates them at startup and exits with a list of problems if any are invalid.
 
-If you change `CLIPFORGE_API_PORT`, also update `connect-src` in `apps/desktop/src-tauri/tauri.conf.json` and `VITE_API_URL`.
+`CLIPFORGE_API_PORT` / `CLIPFORGE_WORKER_PORT` are read by the desktop runtime and passed to the services; nothing else needs changing.
 
 ## Troubleshooting
 
 - **`ERR_PNPM_IGNORED_BUILDS`** — build scripts are opt-in under `allowBuilds` in `pnpm-workspace.yaml`. better-sqlite3 v13 ships prebuilt N-API binaries, so its build script is deliberately disabled.
 - **Port 1420 in use** — another Vite/Tauri dev session is running; Tauri requires that fixed port.
-- **API shows "Offline" in the dashboard** — run `pnpm dev:api`, then press Recheck.
-- **Stopping the worker on macOS** — the process shows up as `Python` (framework build), so use `lsof -tiTCP:4318 | xargs kill`.
+- **API shows "Failed" in Settings.** The reason is shown under the badge. The last lines are in Diagnostics → Recent errors and `<data>/logs/api.log`. "Port 4317 is in use" usually means a standalone `pnpm dev:api` is running.
+- **Worker won't start: "Worker environment missing"** — run `pnpm dev:worker` once to create `services/worker/.venv`, then stop it.
+- **API refuses to start with `DB_CORRUPT`** — see OPERATIONS.md, "Database corruption".
+- **Leftover processes after a crash** — children exit within ~2 s on their own. If not: `lsof -tiTCP:4317 -tiTCP:4318 | xargs kill`.

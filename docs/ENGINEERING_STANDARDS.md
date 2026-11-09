@@ -12,7 +12,7 @@ These rules are **mandatory** for every app, service, package and future integra
 
 Stack reference: Tauri 2 + Rust + React/Vite/TS (`apps/desktop`), Fastify TS API on 127.0.0.1 (`services/api`), Python FastAPI worker (`services/worker`), SQLite + Drizzle (`packages/database`), shared Zod schemas/types (`packages/shared`). Targets: MacBook Air M2 16 GB (Metal), Windows Ryzen + RTX 3070 Ti 8 GB (CUDA).
 
-Data flow: React UI -> Tauri IPC / local API -> Fastify -> Database / Python Worker.
+Data flow: React UI -> Tauri IPC (Rust runtime signs requests) -> Fastify -> Database / Python Worker. The UI has no direct network access to local services.
 
 ## 1. Architecture and separation of concerns
 
@@ -81,7 +81,7 @@ Performance budgets (track; measure, don't assume):
 
 Process policy:
 
-- Ollama and the worker never auto-start with the desktop app.
+- The API starts with the desktop app; Ollama and the worker never auto-start (worker: explicit request only).
 - No Docker or Redis requirement.
 
 ## 5. Security
@@ -93,7 +93,9 @@ General:
 - Validate and sanitize filenames and paths. Prevent path traversal and symlink attacks. Restrict file access to app-owned storage directories.
 - Spawn processes with argument arrays. Never build shell strings from untrusted input.
 - Bind services to loopback only. Restrict CORS to known origins.
-- Localhost is not authentication. Plan a per-session local token between UI and API.
+- Localhost is not authentication. Every API route except `GET /health` requires a signed request (ADR-010); new routes get this automatically and must not opt out.
+- Session credentials live only in the Rust runtime and the API process memory. Never pass them to the webview, never log or persist them.
+- Only the desktop runtime spawns service processes (ADR-012). New Tauri commands must not accept programs, arguments, paths or environment from the frontend, and each command needs an explicit permission in `capabilities/`.
 - IPC contracts are explicit and validated on both sides.
 
 Secrets:
@@ -197,7 +199,7 @@ Pyramid:
 
 - Unit: business logic, validation, workflow transitions, rights verification, resource allocation.
 - Integration: DB with temp databases, API endpoints via `fastify.inject`, worker communication, storage, job persistence and recovery.
-- E2E (Playwright): startup, channel creation, job creation, workflow, restart recovery.
+- E2E (Playwright): UI workflows in a browser against mocked IPC. These do not prove native behaviour; native lifecycle is covered by `cargo test` and the manual checklist in RUNTIME_LIFECYCLE.md. Never describe browser E2E as native coverage.
 
 Rules:
 
@@ -286,7 +288,8 @@ Avoid:
 - [ ] Boundaries respected
 - [ ] Typecheck passes (`pnpm typecheck`)
 - [ ] Lint passes (`pnpm lint`)
-- [ ] Tests pass (`pnpm test`)
+- [ ] Tests pass (`pnpm test`, `cargo test`, `pnpm --filter @clipforge/desktop test:e2e`)
+- [ ] Rust checks pass (`cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`)
 - [ ] Error handling done
 - [ ] Security reviewed
 - [ ] Resource use reasonable
@@ -308,19 +311,21 @@ Pick the simplest design that meets the requirements.
 
 Rules that are only written down are not enforced. Prefer turning a rule into a check.
 
-| Tool                  | Enforces                                | Status               |
-| --------------------- | --------------------------------------- | -------------------- |
-| ESLint                | Code rules, no `any`, import boundaries | Phase 1 (configured) |
-| Prettier              | Formatting                              | Phase 1 (configured) |
-| TypeScript strict     | Type safety                             | Phase 1 (configured) |
-| Vitest                | Unit and integration tests              | Phase 1 (configured) |
-| Zod                   | Runtime validation of external input    | Phase 1 (configured) |
-| Drizzle Kit           | Schema migrations                       | Phase 1 (configured) |
-| Playwright            | E2E tests                               | Planned — Phase 2    |
-| Renovate / Dependabot | Controlled dependency upgrades          | Planned — Phase 2    |
-| Gitleaks              | Secret scanning                         | Planned — Phase 2    |
-| Trivy                 | Dependency and vulnerability scanning   | Planned — Phase 2    |
-| GitHub Actions        | CI running all of the above             | Planned — Phase 2    |
+| Tool               | Enforces                                | Status               |
+| ------------------ | --------------------------------------- | -------------------- |
+| ESLint             | Code rules, no `any`, import boundaries | Phase 1 (configured) |
+| Prettier           | Formatting                              | Phase 1 (configured) |
+| TypeScript strict  | Type safety                             | Phase 1 (configured) |
+| Vitest             | Unit and integration tests              | Phase 1 (configured) |
+| Zod                | Runtime validation of external input    | Phase 1 (configured) |
+| Drizzle Kit        | Schema migrations                       | Phase 1 (configured) |
+| Playwright         | Browser E2E (mocked IPC)                | Phase 2 (configured) |
+| Dependabot         | Controlled dependency upgrades          | Phase 2 (configured) |
+| Gitleaks           | Secret scanning                         | Phase 2 (configured) |
+| Trivy / audits     | Dependency and vulnerability scanning   | Phase 2 (configured) |
+| GitHub Actions     | CI running all of the above             | Phase 2 (configured) |
+| rustfmt / clippy   | Rust formatting and lints               | Phase 2 (configured) |
+| Tauri app manifest | Explicit per-command IPC permissions    | Phase 2 (configured) |
 
 ## Core principle
 

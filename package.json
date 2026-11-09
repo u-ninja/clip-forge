@@ -8,7 +8,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "pnpm --parallel --filter @clipforge/api --filter @clipforge/desktop run dev:stack",
+    "dev": "pnpm dev:desktop",
     "dev:desktop": "pnpm --filter @clipforge/desktop tauri dev",
     "dev:api": "pnpm --filter @clipforge/api dev",
     "dev:worker": "./scripts/worker.sh",

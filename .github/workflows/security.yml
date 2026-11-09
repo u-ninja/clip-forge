@@ -1,0 +1,96 @@
+# Secret scanning and vulnerability scanning. Severity policy: docs/SECURITY.md#ci-severity-policy.
+name: Security
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 4 * * 1" # weekly, catches new advisories against unchanged code
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gitleaks:
+    name: Secret scan (Gitleaks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read # the action lists PR commits
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # full history: secrets removed in later commits still count
+          persist-credentials: false
+      - uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "true"
+
+  trivy:
+    name: Vulnerability scan (Trivy)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Full report for triage (all severities, never fails the build).
+      - name: Trivy report
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          version: v0.76.1 # pinned binary; the action's default would float
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln
+          format: table
+          output: trivy-report.txt
+          exit-code: "0"
+      - name: Upload Trivy report
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: trivy-report
+          path: trivy-report.txt
+          retention-days: 14
+      # Gate: fail on HIGH/CRITICAL that have a fix available.
+      - name: Trivy gate
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          version: v0.76.1
+          skip-setup-trivy: true
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+
+  dependency-audit:
+    name: Dependency audit (pnpm, pip)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "26"
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.15"
+      - name: pnpm audit (fails on high/critical)
+        run: pnpm audit --audit-level high
+      - name: pip-audit (worker runtime requirements)
+        run: |
+          python -m pip install --quiet pip-audit
+          pip-audit -r services/worker/requirements.txt --strict

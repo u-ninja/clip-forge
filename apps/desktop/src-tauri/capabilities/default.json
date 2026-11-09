@@ -1,7 +1,16 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Main window: core window/app APIs only. No shell, fs, or http plugins are granted.",
+  "description": "Main window: core APIs plus the app's own runtime commands. No shell, fs, or http plugins.",
   "windows": ["main"],
-  "permissions": ["core:default"]
+  "permissions": [
+    "core:default",
+    "allow-api-request",
+    "allow-runtime-status",
+    "allow-api-restart",
+    "allow-worker-start",
+    "allow-worker-stop",
+    "allow-diagnostics-report",
+    "allow-diagnostics-export"
+  ]
 }

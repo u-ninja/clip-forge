@@ -1,4 +1,4 @@
-"""Worker HTTP entrypoint. Started on demand (scripts/worker.sh), never by the desktop app at launch."""
+"""Worker HTTP entrypoint. Started on demand by the desktop runtime (or scripts/worker.sh), never at launch."""
 
 import logging
 import time
@@ -36,10 +36,13 @@ def health() -> HealthResponse:
 if __name__ == "__main__":
     import uvicorn
 
+    from worker.lifecycle import watch_parent
     from worker.logging import configure_logging
 
     configure_logging()
     settings = load_settings()
     logging.getLogger("worker").info("compute backend: %s", _compute.backend)
+    if settings.parent_pid is not None:
+        watch_parent(settings.parent_pid)
     # log_config=None keeps uvicorn on our JSON root handler instead of its own formatter.
     uvicorn.run(app, host=settings.host, port=settings.port, log_config=None)

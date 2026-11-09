@@ -5,3 +5,6 @@ pnpm-lock.yaml
 **/drizzle/meta
 services/worker/.venv
 storage
+apps/desktop/playwright-report
+apps/desktop/test-results
+graphify-out

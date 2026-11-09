@@ -1,22 +1,11 @@
 import type { LucideIcon } from "lucide-react";
-import {
-  Activity,
-  CalendarCheck,
-  CircleCheck,
-  CircleDashed,
-  CircleX,
-  Loader,
-  RefreshCw,
-  Tv,
-  Upload,
-} from "lucide-react";
-import type { JobStatus } from "@clipforge/shared";
+import { Activity, CalendarCheck, Tv, Upload } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { useApiHealth } from "@/features/system/useApiHealth";
+import { JOB_STATUS_DISPLAY } from "@/features/system/JobStatusBadge";
+import { ServicesCard } from "@/features/system/ServicesCard";
 import { mockActivity, mockPipeline, mockSummary } from "./mock-data";
 
 const relativeTime = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
@@ -25,19 +14,6 @@ const formatAgo = (d: Date) => {
   return Math.abs(minutes) < 60
     ? relativeTime.format(minutes, "minute")
     : relativeTime.format(Math.round(minutes / 60), "hour");
-};
-
-// Icon + text so status never relies on color alone.
-const STATUS_DISPLAY: Record<
-  JobStatus,
-  { label: string; icon: LucideIcon; variant: "default" | "secondary" | "destructive" | "outline" }
-> = {
-  queued: { label: "Queued", icon: CircleDashed, variant: "outline" },
-  running: { label: "Running", icon: Loader, variant: "default" },
-  paused: { label: "Paused", icon: CircleDashed, variant: "secondary" },
-  succeeded: { label: "Done", icon: CircleCheck, variant: "secondary" },
-  failed: { label: "Failed", icon: CircleX, variant: "destructive" },
-  cancelled: { label: "Cancelled", icon: CircleX, variant: "outline" },
 };
 
 export function DashboardPage() {
@@ -79,7 +55,7 @@ export function DashboardPage() {
           <CardContent>
             <ul className="divide-y">
               {mockActivity.map((a) => {
-                const s = STATUS_DISPLAY[a.status];
+                const s = JOB_STATUS_DISPLAY[a.status];
                 return (
                   <li key={a.id} className="flex items-center justify-between gap-4 py-2.5">
                     <div className="min-w-0">
@@ -121,6 +97,7 @@ export function DashboardPage() {
           </CardContent>
         </Card>
 
+        {/* Real application state: the only live data on this screen. */}
         <ServicesCard />
       </div>
     </>
@@ -137,60 +114,6 @@ function Stat({ icon: Icon, label, value }: { icon: LucideIcon; label: string; v
         </CardDescription>
         <CardTitle className="text-2xl tabular-nums">{value.toLocaleString()}</CardTitle>
       </CardHeader>
-    </Card>
-  );
-}
-
-/** Real application state: the only live data on this screen. */
-function ServicesCard() {
-  const { health, refresh } = useApiHealth();
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Local services</CardTitle>
-        <CardDescription>Live status</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3 text-sm">
-        <div className="flex items-center justify-between">
-          <span>API</span>
-          {health.state === "checking" && (
-            <Badge variant="outline">
-              <Loader aria-hidden />
-              Checking
-            </Badge>
-          )}
-          {health.state === "online" && (
-            <Badge variant="secondary">
-              <CircleCheck aria-hidden />
-              Online
-            </Badge>
-          )}
-          {health.state === "offline" && (
-            <Badge variant="destructive" title={health.reason}>
-              <CircleX aria-hidden />
-              Offline
-            </Badge>
-          )}
-        </div>
-        <div className="flex items-center justify-between">
-          <span>AI worker</span>
-          <Badge variant="outline">On demand</Badge>
-        </div>
-        {health.state === "offline" && (
-          <p className="text-xs text-muted-foreground">
-            Start it with <code>pnpm dev:api</code>.
-          </p>
-        )}
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={refresh}
-          disabled={health.state === "checking"}
-        >
-          <RefreshCw aria-hidden />
-          Recheck
-        </Button>
-      </CardContent>
     </Card>
   );
 }

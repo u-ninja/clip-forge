@@ -9,12 +9,12 @@
     "start": "node --env-file-if-exists=../../.env dist/server.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "dev:stack": "pnpm dev"
+    "call": "tsx --conditions=source scripts/call.ts"
   },
   "dependencies": {
-    "@fastify/cors": "^11.4.1",
     "@clipforge/database": "workspace:*",
     "@clipforge/shared": "workspace:*",
+    "drizzle-orm": "^0.45.4",
     "fastify": "^5.12.8",
     "zod": "^4.6.7"
   },

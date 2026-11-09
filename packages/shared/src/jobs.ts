@@ -1,3 +1,7 @@
+/** Job kinds the runner knows how to execute. Phase 2 ships only the infrastructure self-test. */
+export const JOB_KINDS = ["system.selftest"] as const;
+export type JobKind = (typeof JOB_KINDS)[number];
+
 /** Persisted job lifecycle. Every production/render/publish job uses these states. */
 export const JOB_STATUSES = [
   "queued",

@@ -2,7 +2,7 @@
 
 Local-first, AI-assisted video production desktop app. Everything — UI, API, database, AI workers — runs on your machine. No Docker, no Redis, no cloud dependency for the core app.
 
-**Status:** Phase 1 (foundation). See [docs/ROADMAP.md](docs/ROADMAP.md).
+**Status:** Phase 2 (secure runtime and infrastructure). See [docs/ROADMAP.md](docs/ROADMAP.md).
 
 > Coding agents and contributors: [docs/ENGINEERING_STANDARDS.md](docs/ENGINEERING_STANDARDS.md) is mandatory.
 
@@ -36,15 +36,15 @@ pnpm db:migrate             # optional; the API also migrates on start
 ## Daily commands
 
 ```sh
-pnpm dev            # API + desktop app together
-pnpm dev:api        # API only     → http://127.0.0.1:4317/health
-pnpm dev:desktop    # desktop app only (Vite on :1420 + Tauri window)
-pnpm dev:worker     # Python worker on demand → http://127.0.0.1:4318/health
+pnpm dev            # desktop app; it starts and stops the API itself
+pnpm dev:api        # API standalone (needs CLIPFORGE_API_SECRET, see DEVELOPMENT.md)
+pnpm dev:worker     # creates the worker venv / runs the worker standalone
 
 pnpm typecheck      # tsc across all workspaces
 pnpm lint           # ESLint (strict, type-aware)
 pnpm format         # Prettier
 pnpm test           # Vitest (TS) + pytest (worker)
+pnpm --filter @clipforge/desktop test:e2e   # Playwright (browser, mocked IPC)
 pnpm build          # build all packages, API and frontend
 pnpm build:desktop  # native app bundle (.app/.dmg, .msi)
 
@@ -61,4 +61,8 @@ macOS `~/Library/Application Support/com.clipforge.local/`, Windows `%APPDATA%\c
 - [DEVELOPMENT.md](docs/DEVELOPMENT.md) — environment, commands, troubleshooting
 - [DECISIONS.md](docs/DECISIONS.md) — architecture decision records
 - [ROADMAP.md](docs/ROADMAP.md) — phases
+- [PHASE_SUMMARIES.md](docs/PHASE_SUMMARIES.md) — final summary of each completed phase
 - [ENGINEERING_STANDARDS.md](docs/ENGINEERING_STANDARDS.md) — mandatory rules
+- [SECURITY.md](docs/SECURITY.md) — threat model, auth design, audit findings, CI severity policy
+- [RUNTIME_LIFECYCLE.md](docs/RUNTIME_LIFECYCLE.md) — service startup/shutdown, process ownership, packaging
+- [OPERATIONS.md](docs/OPERATIONS.md) — logs, diagnostics, backup/restore, jobs, CI, dependency updates

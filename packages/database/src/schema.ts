@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { index, integer, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
-import { JOB_STATUSES } from "@clipforge/shared";
+import { JOB_KINDS, JOB_STATUSES, type JobErrorInfo } from "@clipforge/shared";
 
 // Timestamps are unix epoch milliseconds. The DB default covers raw inserts; $onUpdate covers ORM updates.
 const timestamps = {
@@ -238,4 +238,40 @@ export const publishingJobs = sqliteTable(
     ...timestamps,
   },
   (t) => [index("publishing_jobs_status_idx").on(t.status)],
+);
+
+/**
+ * Durable execution queue (ADR-011). Domain tables describe *what* to produce; a row here is one
+ * unit of execution with its lease, retries and progress. SQLite is the source of truth.
+ */
+export const jobs = sqliteTable(
+  "jobs",
+  {
+    id: id(),
+    kind: text("kind", { enum: JOB_KINDS }).notNull(),
+    payload: json("payload").notNull().default({}),
+    status: jobStatus(),
+    priority: integer("priority").notNull().default(0),
+    attempt: integer("attempt").notNull().default(0),
+    maxAttempts: integer("max_attempts").notNull().default(3),
+    progress: real("progress").notNull().default(0),
+    idempotencyKey: text("idempotency_key").unique(),
+    // Earliest time the job may be claimed; pushed forward by retry backoff.
+    runAfter: integer("run_after", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch('subsec') * 1000)`),
+    leaseOwner: text("lease_owner"),
+    leaseExpiresAt: integer("lease_expires_at", { mode: "timestamp_ms" }),
+    heartbeatAt: integer("heartbeat_at", { mode: "timestamp_ms" }),
+    cancelRequested: integer("cancel_requested", { mode: "boolean" }).notNull().default(false),
+    error: text("error", { mode: "json" }).$type<JobErrorInfo>(),
+    result: json("result"),
+    startedAt: integer("started_at", { mode: "timestamp_ms" }),
+    finishedAt: integer("finished_at", { mode: "timestamp_ms" }),
+    ...timestamps,
+  },
+  (t) => [
+    index("jobs_claim_idx").on(t.status, t.runAfter, t.priority),
+    index("jobs_lease_idx").on(t.status, t.leaseExpiresAt),
+  ],
 );
